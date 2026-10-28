@@ -1,0 +1,37 @@
+name: update
+
+on:
+  schedule:
+    - cron: "30 20 * * *"   # 每天台灣時間 04:30
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      TZ: Asia/Taipei
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 產生清單
+        run: python make_tw_ip.py
+
+      - name: 有變更才 commit
+        run: |
+          # .rsc 第一行有建置時間每天都會變，只看 .cidr 判斷網段是否真的有異動
+          if git diff --quiet -- tw-ip.cidr; then
+            echo "網段無變動，不 commit"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add tw-ip.rsc tw-ip.cidr
+          git commit -m "update: $(wc -l < tw-ip.cidr) 段 ($(date +%F))"
+          git push
